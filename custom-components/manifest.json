@@ -1,7 +1,7 @@
 {
   "domain": "zrok",
   "name": "zrok Tunnel",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "documentation": "https://github.com/gormami/ha-zrok",
   "issue_tracker": "https://github.com/gormami/ha-zrok/issues",
   "codeowners": ["@gormami"],
