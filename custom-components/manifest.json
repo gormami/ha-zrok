@@ -1,0 +1,14 @@
+{
+  "domain": "zrok",
+  "name": "zrok Tunnel",
+  "version": "1.0.0",
+  "documentation": "https://github.com/gormami/ha-zrok",
+  "issue_tracker": "https://github.com/gormami/ha-zrok/issues",
+  "codeowners": ["@gormami"],
+  "requirements": [],
+  "dependencies": [],
+  "after_dependencies": ["http"],
+  "iot_class": "local_push",
+  "config_flow": true,
+  "integration_type": "service"
+}

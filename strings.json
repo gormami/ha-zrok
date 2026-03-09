@@ -1,0 +1,43 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "zrok Account Setup",
+        "description": "Enter your zrok account token from [zrok.io]({docs_url}).",
+        "data": {
+          "token": "zrok Account Token",
+          "zrok_api_endpoint": "API Endpoint (leave default for zrok.io)",
+          "binary_path": "Directory to store the zrok binary"
+        }
+      },
+      "tunnel": {
+        "title": "Tunnel Configuration",
+        "description": "Configure how your tunnel will be shared.",
+        "data": {
+          "share_mode": "Share Mode",
+          "reserved_token": "Reserved Share Token (only for Reserved mode)",
+          "tunnel_port": "Home Assistant Port"
+        }
+      }
+    },
+    "error": {
+      "token_required": "A valid zrok token is required.",
+      "cannot_connect": "Unable to start the zrok tunnel. Check your token and network."
+    },
+    "abort": {
+      "already_configured": "zrok is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Update zrok Options",
+        "data": {
+          "share_mode": "Share Mode",
+          "reserved_token": "Reserved Share Token",
+          "tunnel_port": "Home Assistant Port"
+        }
+      }
+    }
+  }
+}

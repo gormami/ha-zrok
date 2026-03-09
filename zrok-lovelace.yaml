@@ -1,0 +1,47 @@
+## Paste this into your Lovelace dashboard (raw YAML editor)
+## Adjust entity IDs to match your actual entry_id if needed.
+
+type: vertical-stack
+cards:
+  - type: entities
+    title: 🔗 zrok Tunnel
+    show_header_toggle: false
+    entities:
+      - entity: sensor.homeassistant_status
+        name: HA Tunnel Status
+        icon: mdi:cloud-check-outline
+      - entity: sensor.homeassistant_url
+        name: Public URL
+        icon: mdi:link-variant
+
+  - type: conditional
+    conditions:
+      - entity: sensor.homeassistant_status
+        state: connected
+    card:
+      type: markdown
+      content: >
+        ## ✅ Tunnel Active
+
+        **Public URL:** [{{ states('sensor.homeassistant_url') }}]({{ states('sensor.homeassistant_url') }})
+
+  - type: conditional
+    conditions:
+      - entity: sensor.homeassistant_status
+        state: disconnected
+    card:
+      type: markdown
+      content: |
+        ## ⚠️ Tunnel Disconnected
+        Check HA logs for details.
+
+  - type: conditional
+    conditions:
+      - entity: sensor.homeassistant_status
+        state: error
+    card:
+      type: markdown
+      content: >
+        ## ❌ Tunnel Error
+
+        **Error:** {{ state_attr('sensor.homeassistant_status', 'error') }}

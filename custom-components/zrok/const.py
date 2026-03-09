@@ -1,0 +1,43 @@
+"""Constants for the zrok integration."""
+
+DOMAIN = "zrok"
+
+# Config entry keys
+CONF_TOKEN = "token"
+CONF_SHARE_MODE = "share_mode"       # "reserved" | "ephemeral"
+CONF_RESERVED_TOKEN = "reserved_token"
+CONF_TUNNEL_PORT = "tunnel_port"
+CONF_EXTRA_SERVICES = "extra_services"  # list of {name, port}
+CONF_ZROK_API_ENDPOINT = "zrok_api_endpoint"
+CONF_BINARY_PATH = "binary_path"
+
+# Defaults
+DEFAULT_HA_PORT = 8123
+DEFAULT_API_ENDPOINT = "https://api.zrok.io"
+DEFAULT_BINARY_DIR = "/config/zrok"
+ZROK_BINARY_NAME = "zrok"
+
+# Platforms
+PLATFORMS = ["sensor"]
+
+# zrok GitHub release base URL
+ZROK_RELEASE_BASE = "https://github.com/openziti/zrok/releases/latest/download"
+
+# Architecture map: (machine, bits) -> zrok release suffix
+ARCH_MAP = {
+    ("x86_64", 64):  "linux_amd64",
+    ("aarch64", 64): "linux_arm64",
+    ("armv7l", 32):  "linux_armv7",
+    ("armv6l", 32):  "linux_armv6",
+}
+
+# Entity unique ID suffixes
+ENTITY_STATUS = "status"
+ENTITY_URL    = "url"
+
+# Update interval for status polling (seconds)
+POLL_INTERVAL = 30
+
+# Share modes
+SHARE_MODE_RESERVED = "reserved"
+SHARE_MODE_EPHEMERAL = "ephemeral"
