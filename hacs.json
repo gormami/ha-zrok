@@ -1,8 +1,6 @@
+
 {
   "name": "zrok Tunnel",
-  "content_in_root": false,
   "homeassistant": "2023.6.0",
-  "filename": "zrok.zip",
-  "hide_default_branch": false,
-  "zip_release": false
+  "hacs": "1.32.0"
 }
