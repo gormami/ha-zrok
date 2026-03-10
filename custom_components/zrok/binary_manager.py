@@ -22,10 +22,6 @@ def _detect_arch() -> str | None:
     return ARCH_MAP.get((machine, bits))
 
 
-def _binary_path(binary_dir: str) -> str:
-    return os.path.join(binary_dir, ZROK_BINARY_NAME)
-
-
 async def ensure_binary(binary_dir: str = DEFAULT_BINARY_DIR) -> str:
     """Ensure the zrok binary exists, downloading it if necessary.
 
@@ -41,31 +37,34 @@ async def ensure_binary(binary_dir: str = DEFAULT_BINARY_DIR) -> str:
         )
 
     os.makedirs(binary_dir, exist_ok=True)
-    path = _binary_path(binary_dir)
+    path = os.path.join(binary_dir, ZROK_BINARY_NAME)
 
     if os.path.isfile(path) and os.access(path, os.X_OK):
         _LOGGER.debug("zrok binary already present at %s", path)
-        # Optionally validate version here in the future
         return path
 
     tarball = f"zrok_{arch}.tar.gz"
     url = f"{ZROK_RELEASE_BASE}/{tarball}"
     _LOGGER.info("Downloading zrok from %s", url)
 
+    # mkstemp guarantees tmp_path is always defined before the try block,
+    # preventing UnboundLocalError in the finally clause.
+    tmp_fd, tmp_path = tempfile.mkstemp(suffix=".tar.gz")
     try:
         async with aiohttp.ClientSession() as session:
             async with session.get(url, timeout=aiohttp.ClientTimeout(total=120)) as resp:
                 resp.raise_for_status()
-                with tempfile.NamedTemporaryFile(suffix=".tar.gz", delete=False) as tmp:
-                    tmp_path = tmp.name
+                with os.fdopen(tmp_fd, "wb") as tmp:
+                    tmp_fd = None  # fd is now owned by the file object
                     async for chunk in resp.content.iter_chunked(65536):
                         tmp.write(chunk)
 
-        # Extract in executor to avoid blocking the event loop
         await asyncio.get_event_loop().run_in_executor(
             None, _extract_binary, tmp_path, binary_dir
         )
     finally:
+        if tmp_fd is not None:
+            os.close(tmp_fd)  # close fd if os.fdopen() never got it
         if os.path.exists(tmp_path):
             os.unlink(tmp_path)
 
