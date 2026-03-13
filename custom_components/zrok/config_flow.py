@@ -11,14 +11,12 @@ from homeassistant.helpers import selector
 
 from .const import (
     CONF_BINARY_PATH,
-    CONF_EXTRA_SERVICES,
     CONF_RESERVED_TOKEN,
     CONF_SHARE_MODE,
     CONF_TOKEN,
     CONF_TUNNEL_PORT,
     CONF_ZROK_API_ENDPOINT,
     DEFAULT_API_ENDPOINT,
-    DEFAULT_BINARY_DIR,
     DEFAULT_HA_PORT,
     DOMAIN,
     SHARE_MODE_EPHEMERAL,
@@ -53,16 +51,16 @@ class ZrokConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         schema = vol.Schema(
             {
                 vol.Required(CONF_TOKEN): selector.TextSelector(
-                    selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)
+                    selector.TextSelectorConfig(
+                        type=selector.TextSelectorType.PASSWORD
+                    )
                 ),
                 vol.Optional(
                     CONF_ZROK_API_ENDPOINT, default=DEFAULT_API_ENDPOINT
                 ): selector.TextSelector(),
-                vol.Optional(CONF_BINARY_PATH, default=""): selector.TextSelector(
-                    selector.TextSelectorConfig(
-                        type=selector.TextSelectorType.TEXT
-                    )
-                ),
+                vol.Optional(
+                    CONF_BINARY_PATH, default=""
+                ): selector.TextSelector(),
             }
         )
 
@@ -78,7 +76,7 @@ class ZrokConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_tunnel(
         self, user_input: dict[str, Any] | None = None
     ) -> config_entries.FlowResult:
-        """Step 2: tunnel configuration (share mode, HA port, extras)."""
+        """Step 2: tunnel configuration (share mode, HA port)."""
         errors: dict[str, str] = {}
 
         if user_input is not None:
@@ -90,21 +88,37 @@ class ZrokConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         schema = vol.Schema(
             {
-                vol.Required(CONF_SHARE_MODE, default=SHARE_MODE_EPHEMERAL): selector.SelectSelector(
+                vol.Required(
+                    CONF_SHARE_MODE, default=SHARE_MODE_EPHEMERAL
+                ): selector.SelectSelector(
                     selector.SelectSelectorConfig(
                         options=[
-                            {"value": SHARE_MODE_EPHEMERAL, "label": "Ephemeral (new URL each start)"},
-                            {"value": SHARE_MODE_RESERVED, "label": "Reserved (persistent URL)"},
+                            {
+                                "value": SHARE_MODE_EPHEMERAL,
+                                "label": "Ephemeral (new URL each start)",
+                            },
+                            {
+                                "value": SHARE_MODE_RESERVED,
+                                "label": "Reserved (persistent URL)",
+                            },
                         ]
                     )
                 ),
-                vol.Optional(CONF_RESERVED_TOKEN, default=""): selector.TextSelector(
+                vol.Optional(
+                    CONF_RESERVED_TOKEN, default=""
+                ): selector.TextSelector(
                     selector.TextSelectorConfig(
                         type=selector.TextSelectorType.PASSWORD
                     )
                 ),
-                vol.Optional(CONF_TUNNEL_PORT, default=DEFAULT_HA_PORT): selector.NumberSelector(
-                    selector.NumberSelectorConfig(min=1, max=65535, mode=selector.NumberSelectorMode.BOX)
+                vol.Optional(
+                    CONF_TUNNEL_PORT, default=DEFAULT_HA_PORT
+                ): selector.NumberSelector(
+                    selector.NumberSelectorConfig(
+                        min=1,
+                        max=65535,
+                        mode=selector.NumberSelectorMode.BOX,
+                    )
                 ),
             }
         )
@@ -117,12 +131,14 @@ class ZrokConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     @staticmethod
     @callback
-    def async_get_options_flow(config_entry: config_entries.ConfigEntry) -> ZrokOptionsFlow:
+    def async_get_options_flow(
+        config_entry: config_entries.ConfigEntry,
+    ) -> ZrokOptionsFlow:
         return ZrokOptionsFlow(config_entry)
 
 
 class ZrokOptionsFlow(config_entries.OptionsFlow):
-    """Handle options updates (extra services, share mode, etc.)."""
+    """Handle options updates."""
 
     def __init__(self, entry: config_entries.ConfigEntry) -> None:
         self._entry = entry
@@ -154,13 +170,19 @@ class ZrokOptionsFlow(config_entries.OptionsFlow):
                     CONF_RESERVED_TOKEN,
                     default=current.get(CONF_RESERVED_TOKEN, ""),
                 ): selector.TextSelector(
-                    selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)
+                    selector.TextSelectorConfig(
+                        type=selector.TextSelectorType.PASSWORD
+                    )
                 ),
                 vol.Optional(
                     CONF_TUNNEL_PORT,
                     default=current.get(CONF_TUNNEL_PORT, DEFAULT_HA_PORT),
                 ): selector.NumberSelector(
-                    selector.NumberSelectorConfig(min=1, max=65535, mode=selector.NumberSelectorMode.BOX)
+                    selector.NumberSelectorConfig(
+                        min=1,
+                        max=65535,
+                        mode=selector.NumberSelectorMode.BOX,
+                    )
                 ),
             }
         )

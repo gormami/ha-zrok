@@ -7,14 +7,14 @@ CONF_TOKEN = "token"
 CONF_SHARE_MODE = "share_mode"       # "reserved" | "ephemeral"
 CONF_RESERVED_TOKEN = "reserved_token"
 CONF_TUNNEL_PORT = "tunnel_port"
-CONF_EXTRA_SERVICES = "extra_services"  # list of {name, port}
+CONF_EXTRA_SERVICES = "extra_services"
 CONF_ZROK_API_ENDPOINT = "zrok_api_endpoint"
 CONF_BINARY_PATH = "binary_path"
 
 # Defaults
 DEFAULT_HA_PORT = 8123
 DEFAULT_API_ENDPOINT = "https://api.zrok.io"
-DEFAULT_BINARY_SUBDIR = "zrok"  # relative subdir under hass.config.config_dir
+DEFAULT_BINARY_SUBDIR = "zrok"       # subdirectory under hass.config.config_dir
 ZROK_BINARY_NAME = "zrok"
 
 # Platforms
