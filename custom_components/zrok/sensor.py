@@ -7,6 +7,7 @@ from datetime import timedelta
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.device_registry import DeviceEntryType
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import (
     CoordinatorEntity,
@@ -75,7 +76,7 @@ class _ZrokBaseSensor(CoordinatorEntity[ZrokCoordinator], SensorEntity):
             "name": "zrok Tunnel",
             "manufacturer": "OpenZiti",
             "model": "zrok",
-            "entry_type": "service",
+            "entry_type": DeviceEntryType.SERVICE,
         }
 
     @property

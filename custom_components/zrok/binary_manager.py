@@ -92,7 +92,7 @@ async def ensure_binary(binary_dir: str) -> str:
                         tmp.write(chunk)
 
         # Step 4: extract in executor to avoid blocking the event loop
-        await asyncio.get_event_loop().run_in_executor(
+        await asyncio.get_running_loop().run_in_executor(
             None, _extract_binary, tmp_path, binary_dir
         )
     finally:
@@ -117,7 +117,7 @@ def _extract_binary(tar_path: str, dest_dir: str) -> None:
         for member in tf.getmembers():
             if member.name.endswith(ZROK_BINARY_NAME) and member.isfile():
                 member.name = ZROK_BINARY_NAME  # flatten any directory prefix
-                tf.extract(member, dest_dir)
+                tf.extract(member, dest_dir, filter="fully_trusted")
                 return
     raise RuntimeError(
         f"Could not find '{ZROK_BINARY_NAME}' inside the downloaded archive."
