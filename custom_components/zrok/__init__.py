@@ -37,7 +37,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     reserved_tok  = cfg.get(CONF_RESERVED_TOKEN, "")
     ha_port       = int(cfg.get(CONF_TUNNEL_PORT, DEFAULT_HA_PORT))
     extra_svcs    = cfg.get(CONF_EXTRA_SERVICES, [])
-    binary_dir    = cfg.get(CONF_BINARY_PATH, DEFAULT_BINARY_DIR)
+    binary_dir    = cfg.get(CONF_BINARY_PATH, DEFAULT_BINARY_SUBDIR)
 
     # 1. Ensure the zrok binary is present
     try:
