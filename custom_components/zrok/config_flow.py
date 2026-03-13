@@ -58,9 +58,11 @@ class ZrokConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Optional(
                     CONF_ZROK_API_ENDPOINT, default=DEFAULT_API_ENDPOINT
                 ): selector.TextSelector(),
-                vol.Optional(
-                    CONF_BINARY_PATH, default=DEFAULT_BINARY_DIR
-                ): selector.TextSelector(),
+                vol.Optional(CONF_BINARY_PATH, default=""): selector.TextSelector(
+                    selector.TextSelectorConfig(
+                        type=selector.TextSelectorType.TEXT
+                    )
+                ),
             }
         )
 

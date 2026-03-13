@@ -14,7 +14,7 @@ CONF_BINARY_PATH = "binary_path"
 # Defaults
 DEFAULT_HA_PORT = 8123
 DEFAULT_API_ENDPOINT = "https://api.zrok.io"
-DEFAULT_BINARY_DIR = "/config/zrok"
+DEFAULT_BINARY_SUBDIR = "zrok"  # relative subdir under hass.config.config_dir
 ZROK_BINARY_NAME = "zrok"
 
 # Platforms
