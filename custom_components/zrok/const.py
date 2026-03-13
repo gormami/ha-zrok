@@ -20,8 +20,11 @@ ZROK_BINARY_NAME = "zrok"
 # Platforms
 PLATFORMS = ["sensor"]
 
-# zrok GitHub release base URL
-ZROK_RELEASE_BASE = "https://github.com/openziti/zrok/releases/latest/download"
+# zrok GitHub API URL for latest release metadata
+ZROK_RELEASE_API = "https://api.github.com/repos/openziti/zrok/releases/latest"
+
+# zrok GitHub release download base URL (version inserted at runtime)
+ZROK_RELEASE_BASE = "https://github.com/openziti/zrok/releases/download"
 
 # Architecture map: (machine, bits) -> zrok release suffix
 ARCH_MAP = {

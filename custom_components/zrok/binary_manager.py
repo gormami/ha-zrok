@@ -10,7 +10,7 @@ import tempfile
 
 import aiohttp
 
-from .const import ARCH_MAP, DEFAULT_BINARY_DIR, ZROK_BINARY_NAME, ZROK_RELEASE_BASE
+from .const import ARCH_MAP, DEFAULT_BINARY_DIR, ZROK_BINARY_NAME, ZROK_RELEASE_API, ZROK_RELEASE_BASE
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -20,6 +20,28 @@ def _detect_arch() -> str | None:
     machine = platform.machine()
     bits = 64 if platform.architecture()[0] == "64bit" else 32
     return ARCH_MAP.get((machine, bits))
+
+
+async def _get_latest_version(session: aiohttp.ClientSession) -> str:
+    """Fetch the latest zrok release version tag from the GitHub API.
+
+    Returns a version string like '1.1.11' (leading 'v' stripped).
+    """
+    headers = {"Accept": "application/vnd.github+json"}
+    async with session.get(
+        ZROK_RELEASE_API,
+        headers=headers,
+        timeout=aiohttp.ClientTimeout(total=30),
+    ) as resp:
+        resp.raise_for_status()
+        data = await resp.json()
+
+    tag = data.get("tag_name", "")
+    if not tag:
+        raise RuntimeError("Could not determine latest zrok version from GitHub API.")
+
+    # Strip leading 'v' if present (e.g. 'v1.1.11' -> '1.1.11')
+    return tag.lstrip("v")
 
 
 async def ensure_binary(binary_dir: str = DEFAULT_BINARY_DIR) -> str:
@@ -43,15 +65,22 @@ async def ensure_binary(binary_dir: str = DEFAULT_BINARY_DIR) -> str:
         _LOGGER.debug("zrok binary already present at %s", path)
         return path
 
-    tarball = f"zrok_{arch}.tar.gz"
-    url = f"{ZROK_RELEASE_BASE}/{tarball}"
-    _LOGGER.info("Downloading zrok from %s", url)
-
     # mkstemp guarantees tmp_path is always defined before the try block,
     # preventing UnboundLocalError in the finally clause.
     tmp_fd, tmp_path = tempfile.mkstemp(suffix=".tar.gz")
     try:
         async with aiohttp.ClientSession() as session:
+            # Step 1: resolve the latest version number dynamically
+            version = await _get_latest_version(session)
+            _LOGGER.info("Latest zrok version: %s", version)
+
+            # Step 2: build the correctly versioned tarball URL
+            # e.g. https://github.com/openziti/zrok/releases/download/v1.1.11/zrok_1.1.11_linux_amd64.tar.gz
+            tarball = f"zrok_{version}_{arch}.tar.gz"
+            url = f"{ZROK_RELEASE_BASE}/v{version}/{tarball}"
+            _LOGGER.info("Downloading zrok from %s", url)
+
+            # Step 3: download
             async with session.get(url, timeout=aiohttp.ClientTimeout(total=120)) as resp:
                 resp.raise_for_status()
                 with os.fdopen(tmp_fd, "wb") as tmp:
@@ -59,6 +88,7 @@ async def ensure_binary(binary_dir: str = DEFAULT_BINARY_DIR) -> str:
                     async for chunk in resp.content.iter_chunked(65536):
                         tmp.write(chunk)
 
+        # Step 4: extract in executor to avoid blocking the event loop
         await asyncio.get_event_loop().run_in_executor(
             None, _extract_binary, tmp_path, binary_dir
         )
