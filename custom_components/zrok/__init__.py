@@ -32,12 +32,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     cfg = {**entry.data, **entry.options}
 
-    token         = cfg[CONF_TOKEN]
-    share_mode    = cfg.get(CONF_SHARE_MODE, SHARE_MODE_EPHEMERAL)
-    reserved_tok  = cfg.get(CONF_RESERVED_TOKEN, "")
-    ha_port       = int(cfg.get(CONF_TUNNEL_PORT, DEFAULT_HA_PORT))
-    extra_svcs    = cfg.get(CONF_EXTRA_SERVICES, [])
-    binary_dir    = cfg.get(CONF_BINARY_PATH, DEFAULT_BINARY_SUBDIR)
+    token        = cfg[CONF_TOKEN]
+    share_mode   = cfg.get(CONF_SHARE_MODE, SHARE_MODE_EPHEMERAL)
+    reserved_tok = cfg.get(CONF_RESERVED_TOKEN, "")
+    ha_port      = int(cfg.get(CONF_TUNNEL_PORT, DEFAULT_HA_PORT))
+    extra_svcs   = cfg.get(CONF_EXTRA_SERVICES, [])
+
+    # Resolve binary dir: use user-supplied path or default to
+    # <config_dir>/zrok, resolved via HA's own path helper so it is
+    # always consistent between where we write and where we execute.
+    binary_dir = cfg.get(CONF_BINARY_PATH) or hass.config.path(DEFAULT_BINARY_SUBDIR)
 
     # 1. Ensure the zrok binary is present
     try:

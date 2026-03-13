@@ -3,15 +3,12 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import re
 from dataclasses import dataclass, field
 from typing import Optional
 
-from .const import (
-    DEFAULT_HA_PORT,
-    SHARE_MODE_EPHEMERAL,
-    SHARE_MODE_RESERVED,
-)
+from .const import DEFAULT_HA_PORT, SHARE_MODE_RESERVED
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -55,7 +52,6 @@ class TunnelManager:
     async def start_all(self) -> None:
         """Enable zrok env and start all configured tunnels."""
         await self._enable_env()
-
         services = [{"name": "homeassistant", "port": self._ha_port}] + self._extra_services
         for svc in services:
             await self._start_tunnel(svc["name"], svc["port"])
@@ -82,15 +78,20 @@ class TunnelManager:
     # Internal helpers
     # ------------------------------------------------------------------
 
-    async def _run(self, *args: str, capture: bool = False) -> str:
-        """Run the zrok binary with the given arguments."""
-        env = {"ZROK_TOKEN": self._token}
+    def _make_env(self) -> dict[str, str]:
+        """Return an environment dict with ZROK_TOKEN set."""
+        env = os.environ.copy()
+        env["ZROK_TOKEN"] = self._token
+        return env
+
+    async def _run(self, *args: str) -> str:
+        """Run the zrok binary with the given arguments and return stdout."""
         proc = await asyncio.create_subprocess_exec(
             self._binary,
             *args,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
-            env={**__import__("os").environ, **env},
+            env=self._make_env(),
         )
         stdout, stderr = await proc.communicate()
         if proc.returncode not in (0, None):
@@ -106,7 +107,6 @@ class TunnelManager:
         try:
             await self._run("enable", self._token)
         except RuntimeError as err:
-            # "already enabled" is acceptable
             if "already enabled" not in str(err).lower():
                 _LOGGER.warning("zrok enable: %s", err)
 
@@ -130,13 +130,12 @@ class TunnelManager:
 
         _LOGGER.info("Starting zrok tunnel for %s on port %d", name, port)
 
-        env = {**__import__("os").environ, "ZROK_TOKEN": self._token}
         try:
             proc = await asyncio.create_subprocess_exec(
                 *cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.STDOUT,
-                env=env,
+                env=self._make_env(),
             )
         except Exception as err:
             info.error = str(err)
@@ -144,8 +143,6 @@ class TunnelManager:
             return
 
         info.process = proc
-
-        # Read output lines until we see the share URL
         asyncio.ensure_future(self._watch_output(info))
 
     async def _watch_output(self, info: TunnelInfo) -> None:
@@ -160,7 +157,9 @@ class TunnelManager:
                     if m:
                         info.url = m.group(0)
                         info.running = True
-                        _LOGGER.info("zrok tunnel %s live at %s", info.name, info.url)
+                        _LOGGER.info(
+                            "zrok tunnel %s live at %s", info.name, info.url
+                        )
         except Exception as err:
             _LOGGER.error("zrok/%s output reader error: %s", info.name, err)
         finally:

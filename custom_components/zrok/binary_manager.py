@@ -6,11 +6,12 @@ import logging
 import os
 import platform
 import stat
+import tarfile
 import tempfile
 
 import aiohttp
 
-from .const import ARCH_MAP, DEFAULT_BINARY_DIR, ZROK_BINARY_NAME, ZROK_RELEASE_API, ZROK_RELEASE_BASE
+from .const import ARCH_MAP, ZROK_BINARY_NAME, ZROK_RELEASE_API, ZROK_RELEASE_BASE
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -44,10 +45,10 @@ async def _get_latest_version(session: aiohttp.ClientSession) -> str:
     return tag.lstrip("v")
 
 
-async def ensure_binary(binary_dir: str = DEFAULT_BINARY_DIR) -> str:
+async def ensure_binary(binary_dir: str) -> str:
     """Ensure the zrok binary exists, downloading it if necessary.
 
-    Returns the path to the binary.
+    Returns the absolute path to the binary.
     Raises RuntimeError if the architecture is unsupported or download fails.
     """
     arch = _detect_arch()
@@ -75,13 +76,15 @@ async def ensure_binary(binary_dir: str = DEFAULT_BINARY_DIR) -> str:
             _LOGGER.info("Latest zrok version: %s", version)
 
             # Step 2: build the correctly versioned tarball URL
-            # e.g. https://github.com/openziti/zrok/releases/download/v1.1.11/zrok_1.1.11_linux_amd64.tar.gz
+            # e.g. .../download/v1.1.11/zrok_1.1.11_linux_amd64.tar.gz
             tarball = f"zrok_{version}_{arch}.tar.gz"
             url = f"{ZROK_RELEASE_BASE}/v{version}/{tarball}"
             _LOGGER.info("Downloading zrok from %s", url)
 
-            # Step 3: download
-            async with session.get(url, timeout=aiohttp.ClientTimeout(total=120)) as resp:
+            # Step 3: stream download into temp file
+            async with session.get(
+                url, timeout=aiohttp.ClientTimeout(total=120)
+            ) as resp:
                 resp.raise_for_status()
                 with os.fdopen(tmp_fd, "wb") as tmp:
                     tmp_fd = None  # fd is now owned by the file object
@@ -94,14 +97,14 @@ async def ensure_binary(binary_dir: str = DEFAULT_BINARY_DIR) -> str:
         )
     finally:
         if tmp_fd is not None:
-            os.close(tmp_fd)  # close fd if os.fdopen() never got it
+            os.close(tmp_fd)  # close raw fd if os.fdopen() was never reached
         if os.path.exists(tmp_path):
             os.unlink(tmp_path)
 
     if not os.path.isfile(path):
         raise RuntimeError("zrok binary not found after extraction.")
 
-    # Make executable
+    # Ensure the binary is executable
     st = os.stat(path)
     os.chmod(path, st.st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
     _LOGGER.info("zrok binary ready at %s", path)
@@ -109,13 +112,13 @@ async def ensure_binary(binary_dir: str = DEFAULT_BINARY_DIR) -> str:
 
 
 def _extract_binary(tar_path: str, dest_dir: str) -> None:
-    """Extract the zrok binary from a tarball (blocking, run in executor)."""
-    import tarfile
-
+    """Extract the zrok binary from a tarball (blocking — run in executor)."""
     with tarfile.open(tar_path, "r:gz") as tf:
         for member in tf.getmembers():
             if member.name.endswith(ZROK_BINARY_NAME) and member.isfile():
-                member.name = ZROK_BINARY_NAME  # flatten path
+                member.name = ZROK_BINARY_NAME  # flatten any directory prefix
                 tf.extract(member, dest_dir)
                 return
-    raise RuntimeError(f"Could not find '{ZROK_BINARY_NAME}' inside the downloaded archive.")
+    raise RuntimeError(
+        f"Could not find '{ZROK_BINARY_NAME}' inside the downloaded archive."
+    )

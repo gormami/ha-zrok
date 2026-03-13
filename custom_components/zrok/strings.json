@@ -7,7 +7,7 @@
         "data": {
           "token": "zrok Account Token",
           "zrok_api_endpoint": "API Endpoint (leave default for zrok.io)",
-          "binary_path": "Directory to store the zrok binary"
+          "binary_path": "Binary directory override (leave blank to use default)"
         }
       },
       "tunnel": {

@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 from datetime import timedelta
 
-from homeassistant.components.sensor import SensorEntity, SensorEntityDescription
+from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -14,11 +14,9 @@ from homeassistant.helpers.update_coordinator import (
 )
 
 from .const import DOMAIN, ENTITY_STATUS, ENTITY_URL, POLL_INTERVAL
-from .tunnel_manager import TunnelManager, TunnelInfo
+from .tunnel_manager import TunnelInfo, TunnelManager
 
 _LOGGER = logging.getLogger(__name__)
-
-SCAN_INTERVAL = timedelta(seconds=POLL_INTERVAL)
 
 
 async def async_setup_entry(
@@ -40,7 +38,7 @@ async def async_setup_entry(
     async_add_entities(entities)
 
 
-class ZrokCoordinator(DataUpdateCoordinator):
+class ZrokCoordinator(DataUpdateCoordinator[dict[str, TunnelInfo]]):
     """Polls the TunnelManager for updated tunnel state."""
 
     def __init__(self, hass: HomeAssistant, manager: TunnelManager) -> None:
@@ -48,7 +46,7 @@ class ZrokCoordinator(DataUpdateCoordinator):
             hass,
             _LOGGER,
             name="zrok tunnel coordinator",
-            update_interval=SCAN_INTERVAL,
+            update_interval=timedelta(seconds=POLL_INTERVAL),
         )
         self._manager = manager
 
@@ -88,7 +86,12 @@ class _ZrokBaseSensor(CoordinatorEntity[ZrokCoordinator], SensorEntity):
 class ZrokUrlSensor(_ZrokBaseSensor):
     """Reports the public tunnel URL for one service."""
 
-    def __init__(self, coordinator, entry, tunnel_name):
+    def __init__(
+        self,
+        coordinator: ZrokCoordinator,
+        entry: ConfigEntry,
+        tunnel_name: str,
+    ) -> None:
         super().__init__(coordinator, entry, tunnel_name, ENTITY_URL)
         self._attr_name = f"{tunnel_name} URL"
         self._attr_icon = "mdi:link-variant"
@@ -101,13 +104,21 @@ class ZrokUrlSensor(_ZrokBaseSensor):
     @property
     def extra_state_attributes(self) -> dict:
         t = self._tunnel
-        return {"port": t.port if t else None, "tunnel_name": self._tunnel_name}
+        return {
+            "port": t.port if t else None,
+            "tunnel_name": self._tunnel_name,
+        }
 
 
 class ZrokStatusSensor(_ZrokBaseSensor):
     """Reports the running status of one tunnel."""
 
-    def __init__(self, coordinator, entry, tunnel_name):
+    def __init__(
+        self,
+        coordinator: ZrokCoordinator,
+        entry: ConfigEntry,
+        tunnel_name: str,
+    ) -> None:
         super().__init__(coordinator, entry, tunnel_name, ENTITY_STATUS)
         self._attr_name = f"{tunnel_name} status"
         self._attr_icon = "mdi:cloud-check-outline"
