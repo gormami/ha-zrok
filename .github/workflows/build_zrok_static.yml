@@ -52,12 +52,10 @@ jobs:
         include:
           - arch: amd64
             goarch: amd64
-            goarm: ""
             musl_target: x86_64-linux-musl
             runner: ubuntu-latest
           - arch: arm64
             goarch: arm64
-            goarm: ""
             musl_target: aarch64-linux-musl
             runner: ubuntu-latest
           - arch: armv7
@@ -114,6 +112,7 @@ jobs:
           exec aarch64-linux-gnu-gcc \
             --sysroot=/usr/aarch64-linux-gnu \
             -static \
+            -D_GNU_SOURCE \
             "$@"
           SH
             sudo chmod +x /usr/local/bin/aarch64-musl-gcc
@@ -126,6 +125,7 @@ jobs:
           exec arm-linux-gnueabihf-gcc \
             --sysroot=/usr/arm-linux-gnueabihf \
             -static \
+            -D_GNU_SOURCE \
             "$@"
           SH
             sudo chmod +x /usr/local/bin/armhf-musl-gcc
@@ -135,7 +135,7 @@ jobs:
         env:
           GOOS: linux
           GOARCH: ${{ matrix.goarch }}
-          GOARM:  ${{ matrix.goarm }}
+          GOARM:  ${{ matrix.goarm || '' }}
           CGO_ENABLED: "1"
           # pread64/pwrite64/off64_t are glibc extensions; require _GNU_SOURCE
           CGO_CFLAGS: "-D_GNU_SOURCE"
@@ -159,10 +159,15 @@ jobs:
       - name: Verify binary is statically linked
         run: |
           file dist/zrok
-          # 'ldd' on a static binary prints "not a dynamic executable"
-          ldd dist/zrok 2>&1 | grep -q "not a dynamic executable" \
-            && echo "✅ Binary is statically linked" \
-            || (echo "❌ Binary is NOT statically linked!" && exit 1)
+          # readelf -d reads ELF headers directly; works for any target arch.
+          # A static binary has no NEEDED entries in its dynamic section.
+          if readelf -d dist/zrok 2>/dev/null | grep -q NEEDED; then
+            echo "❌ Binary is NOT statically linked!"
+            readelf -d dist/zrok | grep NEEDED
+            exit 1
+          else
+            echo "✅ Binary is statically linked"
+          fi
 
       - name: Package into tarball
         run: |
