@@ -1,0 +1,66 @@
+name: Watch for new zrok releases
+
+# Polls the openziti/zrok releases every 6 hours.
+# When a new version is detected, triggers the build workflow via
+# repository_dispatch so the static binaries are rebuilt automatically.
+
+on:
+  schedule:
+    - cron: "0 */6 * * *"   # every 6 hours
+  workflow_dispatch:          # allow manual trigger for testing
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # needed to write the last-seen version cache file
+
+    steps:
+      - name: Checkout ha-zrok repo
+        uses: actions/checkout@v4
+
+      - name: Get latest zrok release version
+        id: latest
+        run: |
+          TAG=$(curl -fsSL \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/openziti/zrok/releases/latest \
+            | jq -r '.tag_name')
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "Latest zrok tag: ${TAG}"
+
+      - name: Read last seen version
+        id: last_seen
+        run: |
+          if [ -f .zrok_last_seen_version ]; then
+            LAST=$(cat .zrok_last_seen_version)
+          else
+            LAST="none"
+          fi
+          echo "last=${LAST}" >> "$GITHUB_OUTPUT"
+          echo "Last seen zrok tag: ${LAST}"
+
+      - name: Trigger build if version is new
+        if: steps.latest.outputs.tag != steps.last_seen.outputs.last
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          NEW_TAG="${{ steps.latest.outputs.tag }}"
+          NEW_VERSION="${NEW_TAG#v}"
+          echo "New version detected: ${NEW_TAG} (was: ${{ steps.last_seen.outputs.last }})"
+
+          # Fire the repository_dispatch event to trigger the build workflow
+          gh api \
+            --method POST \
+            -H "Accept: application/vnd.github+json" \
+            /repos/${{ github.repository }}/dispatches \
+            -f event_type=zrok_release \
+            -f client_payload[version]="${NEW_VERSION}"
+
+          # Save the new version so we don't trigger again next poll
+          echo "${NEW_TAG}" > .zrok_last_seen_version
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .zrok_last_seen_version
+          git commit -m "chore: update last seen zrok version to ${NEW_TAG}"
+          git push

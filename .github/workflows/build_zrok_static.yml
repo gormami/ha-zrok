@@ -1,0 +1,221 @@
+name: Build Static zrok Binaries
+
+# Triggers:
+#   1. When openziti/zrok publishes a new release (via repository_dispatch
+#      sent by the watch workflow below, or manually via workflow_dispatch)
+#   2. Manually from the Actions tab for testing
+on:
+  repository_dispatch:
+    types: [zrok_release]
+  workflow_dispatch:
+    inputs:
+      zrok_version:
+        description: "zrok version to build (e.g. 1.1.11). Leave blank for latest."
+        required: false
+        default: ""
+
+jobs:
+  # ── Resolve the version to build ──────────────────────────────────────────
+  resolve-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+    steps:
+      - name: Determine zrok version
+        id: version
+        run: |
+          if [ -n "${{ github.event.client_payload.version }}" ]; then
+            # Triggered by watch workflow
+            RAW="${{ github.event.client_payload.version }}"
+          elif [ -n "${{ github.event.inputs.zrok_version }}" ]; then
+            # Manual override
+            RAW="${{ github.event.inputs.zrok_version }}"
+          else
+            # Fetch latest from GitHub API
+            RAW=$(curl -fsSL \
+              -H "Accept: application/vnd.github+json" \
+              https://api.github.com/repos/openziti/zrok/releases/latest \
+              | jq -r '.tag_name')
+          fi
+          # Strip leading 'v'
+          VERSION="${RAW#v}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=v${VERSION}"    >> "$GITHUB_OUTPUT"
+          echo "Building zrok version: ${VERSION}"
+
+  # ── Build static binary for each architecture ──────────────────────────────
+  build:
+    needs: resolve-version
+    strategy:
+      matrix:
+        include:
+          - arch: amd64
+            goarch: amd64
+            goarm: ""
+            musl_target: x86_64-linux-musl
+            runner: ubuntu-latest
+          - arch: arm64
+            goarch: arm64
+            goarm: ""
+            musl_target: aarch64-linux-musl
+            runner: ubuntu-latest
+          - arch: armv7
+            goarch: arm
+            goarm: "7"
+            musl_target: arm-linux-musleabihf
+            runner: ubuntu-latest
+
+    runs-on: ${{ matrix.runner }}
+    env:
+      ZROK_VERSION: ${{ needs.resolve-version.outputs.version }}
+      ZROK_TAG:     ${{ needs.resolve-version.outputs.tag }}
+
+    steps:
+      - name: Checkout openziti/zrok at tag
+        uses: actions/checkout@v4
+        with:
+          repository: openziti/zrok
+          ref: ${{ env.ZROK_TAG }}
+          fetch-depth: 1
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Set up Node.js (required to build embedded UI assets)
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: |
+            ui/package-lock.json
+            agent/agentUi/package-lock.json
+
+      - name: Build UI assets
+        run: |
+          (cd ui && npm ci && npm run build)
+          (cd agent/agentUi && npm ci && npm run build)
+
+      - name: Install musl cross-compiler (${{ matrix.musl_target }})
+        run: |
+          sudo apt-get update -q
+          # musl-tools covers native amd64; cross compilers need separate packages
+          sudo apt-get install -y musl-tools
+
+          if [ "${{ matrix.goarch }}" = "arm64" ]; then
+            # aarch64 musl cross toolchain
+            sudo apt-get install -y gcc-aarch64-linux-gnu
+            # Wrap with musl static flags via a shim
+            sudo tee /usr/local/bin/aarch64-musl-gcc > /dev/null << 'SH'
+          #!/bin/sh
+          exec aarch64-linux-gnu-gcc \
+            --sysroot=/usr/aarch64-linux-gnu \
+            -static \
+            "$@"
+          SH
+            sudo chmod +x /usr/local/bin/aarch64-musl-gcc
+          fi
+
+          if [ "${{ matrix.goarch }}" = "arm" ]; then
+            sudo apt-get install -y gcc-arm-linux-gnueabihf
+            sudo tee /usr/local/bin/armhf-musl-gcc > /dev/null << 'SH'
+          #!/bin/sh
+          exec arm-linux-gnueabihf-gcc \
+            --sysroot=/usr/arm-linux-gnueabihf \
+            -static \
+            "$@"
+          SH
+            sudo chmod +x /usr/local/bin/armhf-musl-gcc
+          fi
+
+      - name: Build static zrok binary
+        env:
+          GOOS: linux
+          GOARCH: ${{ matrix.goarch }}
+          GOARM:  ${{ matrix.goarm }}
+          CGO_ENABLED: "1"
+          # Select the correct musl-wrapping C compiler per arch
+          CC: >-
+            ${{
+              matrix.goarch == 'amd64' && 'musl-gcc' ||
+              matrix.goarch == 'arm64' && 'aarch64-musl-gcc' ||
+              'armhf-musl-gcc'
+            }}
+        run: |
+          mkdir -p dist
+          go build \
+            -tags netgo,osusergo \
+            -ldflags "-linkmode external -extldflags '-static' \
+                      -X github.com/openziti/zrok/build.Version=${ZROK_VERSION} \
+                      -X github.com/openziti/zrok/build.Hash=$(git rev-parse --short HEAD)" \
+            -o dist/zrok \
+            ./cmd/zrok
+
+      - name: Verify binary is statically linked
+        run: |
+          file dist/zrok
+          # 'ldd' on a static binary prints "not a dynamic executable"
+          ldd dist/zrok 2>&1 | grep -q "not a dynamic executable" \
+            && echo "✅ Binary is statically linked" \
+            || (echo "❌ Binary is NOT statically linked!" && exit 1)
+
+      - name: Package into tarball
+        run: |
+          TARBALL="zrok_${ZROK_VERSION}_linux_${{ matrix.arch }}_static.tar.gz"
+          tar -czf "${TARBALL}" -C dist zrok
+          echo "TARBALL=${TARBALL}" >> "$GITHUB_ENV"
+          sha256sum "${TARBALL}" > "${TARBALL}.sha256"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: zrok-static-${{ matrix.arch }}-${{ env.ZROK_VERSION }}
+          path: |
+            ${{ env.TARBALL }}
+            ${{ env.TARBALL }}.sha256
+          retention-days: 90
+
+  # ── Create a GitHub release on ha-zrok with all binaries attached ──────────
+  release:
+    needs: [resolve-version, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      ZROK_VERSION: ${{ needs.resolve-version.outputs.version }}
+
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: List artifacts
+        run: find artifacts -type f | sort
+
+      - name: Create or update GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "zrok-static-v${{ env.ZROK_VERSION }}"
+          name: "Static zrok v${{ env.ZROK_VERSION }} for Alpine/HAOS"
+          body: |
+            Statically linked zrok v${{ env.ZROK_VERSION }} binaries for use in
+            musl-based environments (Alpine Linux, Home Assistant OS/Container).
+
+            Built from [openziti/zrok@${{ needs.resolve-version.outputs.tag }}](https://github.com/openziti/zrok/releases/tag/${{ needs.resolve-version.outputs.tag }})
+
+            ## Architectures
+            | File | Platform |
+            |------|----------|
+            | `zrok_*_linux_amd64_static.tar.gz`  | x86-64 (most NUC/VM installs) |
+            | `zrok_*_linux_arm64_static.tar.gz`  | ARM 64-bit (Pi 4/5 64-bit OS) |
+            | `zrok_*_linux_armv7_static.tar.gz`  | ARM 32-bit (Pi 3/4 32-bit OS) |
+
+            ## Verification
+            Each tarball has a companion `.sha256` checksum file.
+          files: artifacts/**
+          fail_on_unmatched_files: true

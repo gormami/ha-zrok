@@ -26,12 +26,22 @@ ZROK_RELEASE_API = "https://api.github.com/repos/openziti/zrok/releases/latest"
 # zrok GitHub release download base URL (version inserted at runtime)
 ZROK_RELEASE_BASE = "https://github.com/openziti/zrok/releases/download"
 
-# Architecture map: (machine, bits) -> zrok release suffix
+# ha-zrok repo that hosts statically linked builds for musl/Alpine/HAOS
+STATIC_RELEASE_REPO = "gormami/ha-zrok"
+
+# Architecture map: (machine, bits) -> upstream zrok release suffix
 ARCH_MAP = {
     ("x86_64", 64):  "linux_amd64",
     ("aarch64", 64): "linux_arm64",
     ("armv7l", 32):  "linux_armv7",
     ("armv6l", 32):  "linux_armv6",
+}
+
+# Architecture map: (machine, bits) -> static build suffix (from ha-zrok releases)
+ARCH_MAP_STATIC = {
+    ("x86_64", 64):  "amd64",
+    ("aarch64", 64): "arm64",
+    ("armv7l", 32):  "armv7",
 }
 
 # Entity unique ID suffixes
