@@ -106,8 +106,8 @@ jobs:
           sudo apt-get install -y musl-tools
 
           if [ "${{ matrix.goarch }}" = "arm64" ]; then
-            # aarch64 musl cross toolchain
-            sudo apt-get install -y gcc-aarch64-linux-gnu
+            # aarch64 musl cross toolchain (libc6-dev-arm64-cross provides sysroot headers)
+            sudo apt-get install -y gcc-aarch64-linux-gnu libc6-dev-arm64-cross
             # Wrap with musl static flags via a shim
             sudo tee /usr/local/bin/aarch64-musl-gcc > /dev/null << 'SH'
           #!/bin/sh
@@ -120,7 +120,7 @@ jobs:
           fi
 
           if [ "${{ matrix.goarch }}" = "arm" ]; then
-            sudo apt-get install -y gcc-arm-linux-gnueabihf
+            sudo apt-get install -y gcc-arm-linux-gnueabihf libc6-dev-armhf-cross
             sudo tee /usr/local/bin/armhf-musl-gcc > /dev/null << 'SH'
           #!/bin/sh
           exec arm-linux-gnueabihf-gcc \
@@ -137,6 +137,8 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
           GOARM:  ${{ matrix.goarm }}
           CGO_ENABLED: "1"
+          # pread64/pwrite64/off64_t are glibc extensions; require _GNU_SOURCE
+          CGO_CFLAGS: "-D_GNU_SOURCE"
           # Select the correct musl-wrapping C compiler per arch
           CC: >-
             ${{
