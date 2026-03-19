@@ -103,6 +103,22 @@ jobs:
           # musl-tools covers native amd64; cross compilers need separate packages
           sudo apt-get install -y musl-tools
 
+          if [ "${{ matrix.goarch }}" = "amd64" ]; then
+            # musl's <unistd.h> does not declare pread64 (musl uses pread with a
+            # 64-bit off_t by default). go-sqlite3 hard-codes -DHAVE_PREAD64=1 in
+            # its "#cgo linux CFLAGS:" which the Go toolchain appends AFTER
+            # CGO_CFLAGS, so env-var overrides cannot win. The shim appends our
+            # undefs AFTER "$@" so they are the last -D flags seen by GCC and
+            # therefore take precedence (GCC last-definition-wins rule).
+            sudo tee /usr/local/bin/musl-gcc > /dev/null << 'SH'
+          #!/bin/sh
+          exec /usr/bin/musl-gcc "$@" \
+            -UHAVE_PREAD64  -DHAVE_PREAD64=0 \
+            -UHAVE_PWRITE64 -DHAVE_PWRITE64=0
+          SH
+            sudo chmod +x /usr/local/bin/musl-gcc
+          fi
+
           if [ "${{ matrix.goarch }}" = "arm64" ]; then
             # aarch64 musl cross toolchain (libc6-dev-arm64-cross provides sysroot headers)
             sudo apt-get install -y gcc-aarch64-linux-gnu libc6-dev-arm64-cross
@@ -137,8 +153,6 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
           GOARM:  ${{ matrix.goarm || '' }}
           CGO_ENABLED: "1"
-          # pread64/pwrite64/off64_t are glibc extensions; require _GNU_SOURCE
-          CGO_CFLAGS: "-D_GNU_SOURCE"
           # Select the correct musl-wrapping C compiler per arch
           CC: >-
             ${{
