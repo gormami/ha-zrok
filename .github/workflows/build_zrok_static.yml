@@ -104,17 +104,32 @@ jobs:
           sudo apt-get install -y musl-tools
 
           if [ "${{ matrix.goarch }}" = "amd64" ]; then
-            # musl's <unistd.h> does not declare pread64 (musl uses pread with a
-            # 64-bit off_t by default). go-sqlite3 hard-codes -DHAVE_PREAD64=1 in
-            # its "#cgo linux CFLAGS:" which the Go toolchain appends AFTER
-            # CGO_CFLAGS, so env-var overrides cannot win. The shim appends our
-            # undefs AFTER "$@" so they are the last -D flags seen by GCC and
-            # therefore take precedence (GCC last-definition-wins rule).
+            # musl's <unistd.h> never declares pread64/pwrite64 or off64_t.
+            # go-sqlite3 hard-codes -DHAVE_PREAD64=1 in its "#cgo linux CFLAGS:"
+            # which Go appends AFTER CGO_CFLAGS, so env-var -D overrides cannot
+            # win. Appending -D flags after "$@" also fails because GCC may ignore
+            # -D flags that appear after the -o <file> argument.
+            #
+            # The reliable fix: a force-included header that uses #undef to patch
+            # the macros. GCC always processes -include files AFTER all command-line
+            # -D defines are established, so #undef inside them wins.
+            sudo tee /usr/local/include/sqlite3_musl_fix.h > /dev/null << 'HDR'
+          /* Force HAVE_PREAD64/PWRITE64 off for musl builds.
+             musl's unistd.h omits pread64/pwrite64; patching here is safe because
+             SQLite falls back to pread/pwrite which are semantically identical on
+             64-bit musl (off_t is already 64-bit). */
+          #ifdef HAVE_PREAD64
+          #undef  HAVE_PREAD64
+          #define HAVE_PREAD64 0
+          #endif
+          #ifdef HAVE_PWRITE64
+          #undef  HAVE_PWRITE64
+          #define HAVE_PWRITE64 0
+          #endif
+          HDR
             sudo tee /usr/local/bin/musl-gcc > /dev/null << 'SH'
           #!/bin/sh
-          exec /usr/bin/musl-gcc "$@" \
-            -UHAVE_PREAD64  -DHAVE_PREAD64=0 \
-            -UHAVE_PWRITE64 -DHAVE_PWRITE64=0
+          exec /usr/bin/musl-gcc -include /usr/local/include/sqlite3_musl_fix.h "$@"
           SH
             sudo chmod +x /usr/local/bin/musl-gcc
           fi
@@ -145,6 +160,13 @@ jobs:
             "$@"
           SH
             sudo chmod +x /usr/local/bin/armhf-musl-gcc
+          fi
+
+      - name: Verify compiler shim
+        run: |
+          echo "=== CC wrapper ===" && cat "$(which "${{ matrix.goarch == 'amd64' && 'musl-gcc' || matrix.goarch == 'arm64' && 'aarch64-musl-gcc' || 'armhf-musl-gcc' }}")"
+          if [ "${{ matrix.goarch }}" = "amd64" ]; then
+            echo "=== sqlite3_musl_fix.h ===" && cat /usr/local/include/sqlite3_musl_fix.h
           fi
 
       - name: Build static zrok binary
