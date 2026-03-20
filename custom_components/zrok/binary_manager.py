@@ -137,6 +137,12 @@ async def ensure_binary(binary_dir: str) -> str:
     Returns the absolute path to the binary.
     """
     arch = _detect_arch()
+    _LOGGER.debug(
+        "Architecture detection: machine=%s bits=%s arch=%s",
+        platform.machine(),
+        platform.architecture()[0],
+        arch,
+    )
     if not arch:
         raise RuntimeError(
             f"Unsupported architecture: {platform.machine()} "
@@ -146,11 +152,17 @@ async def ensure_binary(binary_dir: str) -> str:
 
     os.makedirs(binary_dir, exist_ok=True)
     path = os.path.join(binary_dir, ZROK_BINARY_NAME)
+    _LOGGER.debug("zrok binary expected at: %s (dir exists: %s)", path, os.path.isdir(binary_dir))
 
     if os.path.isfile(path) and os.access(path, os.X_OK):
         _LOGGER.debug("zrok binary already present at %s", path)
         return path
 
+    _LOGGER.debug(
+        "Binary not present or not executable (exists: %s, executable: %s)",
+        os.path.isfile(path),
+        os.access(path, os.X_OK),
+    )
     libc = _detect_libc()
     _LOGGER.info("Detected libc: %s", libc)
 

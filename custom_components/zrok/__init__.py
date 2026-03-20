@@ -42,10 +42,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # <config_dir>/zrok, resolved via HA's own path helper so it is
     # always consistent between where we write and where we execute.
     binary_dir = cfg.get(CONF_BINARY_PATH) or hass.config.path(DEFAULT_BINARY_SUBDIR)
+    _LOGGER.debug(
+        "zrok binary_dir resolved to: %s (from config: %r)",
+        binary_dir,
+        cfg.get(CONF_BINARY_PATH),
+    )
 
     # 1. Ensure the zrok binary is present
     try:
         binary_path = await ensure_binary(binary_dir)
+        _LOGGER.debug("zrok binary path: %s", binary_path)
     except Exception as err:
         _LOGGER.error("Could not obtain zrok binary: %s", err)
         raise ConfigEntryNotReady(f"zrok binary unavailable: {err}") from err

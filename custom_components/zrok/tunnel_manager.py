@@ -86,29 +86,47 @@ class TunnelManager:
 
     async def _run(self, *args: str) -> str:
         """Run the zrok binary with the given arguments and return stdout."""
-        proc = await asyncio.create_subprocess_exec(
-            self._binary,
-            *args,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            env=self._make_env(),
-        )
+        _LOGGER.debug("Running command: %s %s", self._binary, " ".join(args))
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                self._binary,
+                *args,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                env=self._make_env(),
+            )
+        except FileNotFoundError:
+            raise RuntimeError(
+                f"zrok binary not found at '{self._binary}'. "
+                "Check the binary directory setting."
+            )
         stdout, stderr = await proc.communicate()
+        stdout_str = stdout.decode().strip()
+        stderr_str = stderr.decode().strip()
+        _LOGGER.debug(
+            "Command 'zrok %s' exited rc=%s stdout=%r stderr=%r",
+            " ".join(args),
+            proc.returncode,
+            stdout_str,
+            stderr_str,
+        )
         if proc.returncode not in (0, None):
             raise RuntimeError(
                 f"zrok {' '.join(args)} failed (rc={proc.returncode}): "
-                f"{stderr.decode().strip()}"
+                f"{stderr_str}"
             )
-        return stdout.decode().strip()
+        return stdout_str
 
     async def _enable_env(self) -> None:
         """Run `zrok enable` to register the environment."""
-        _LOGGER.debug("Enabling zrok environment")
+        _LOGGER.debug("Enabling zrok environment (binary: %s)", self._binary)
         try:
             await self._run("enable", self._token)
+            _LOGGER.debug("zrok environment enabled successfully")
         except RuntimeError as err:
-            if "already enabled" not in str(err).lower():
-                _LOGGER.warning("zrok enable: %s", err)
+            err_str = str(err)
+            if "already enabled" not in err_str.lower():
+                _LOGGER.warning("zrok enable failed: %s", err_str)
 
     async def _disable_env(self) -> None:
         """Run `zrok disable` to clean up the environment."""
@@ -129,6 +147,7 @@ class TunnelManager:
             cmd += ["--reserved", self._reserved_token]
 
         _LOGGER.info("Starting zrok tunnel for %s on port %d", name, port)
+        _LOGGER.debug("Tunnel command: %s", " ".join(cmd))
 
         try:
             proc = await asyncio.create_subprocess_exec(
@@ -137,6 +156,13 @@ class TunnelManager:
                 stderr=asyncio.subprocess.STDOUT,
                 env=self._make_env(),
             )
+        except FileNotFoundError:
+            info.error = f"Binary not found at '{self._binary}'"
+            _LOGGER.error(
+                "zrok binary not found at '%s'. Check the binary directory setting.",
+                self._binary,
+            )
+            return
         except Exception as err:
             info.error = str(err)
             _LOGGER.error("Failed to launch zrok for %s: %s", name, err)
