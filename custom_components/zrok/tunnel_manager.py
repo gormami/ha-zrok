@@ -143,7 +143,7 @@ class TunnelManager:
             return
 
         info.process = proc
-        asyncio.get_event_loop().create_task(self._watch_output(info))
+        asyncio.get_running_loop().create_task(self._watch_output(info))
 
     async def _watch_output(self, info: TunnelInfo) -> None:
         """Read stdout of a tunnel process, extract URL, log errors."""

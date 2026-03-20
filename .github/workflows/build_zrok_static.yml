@@ -113,23 +113,18 @@ jobs:
             # The reliable fix: a force-included header that uses #undef to patch
             # the macros. GCC always processes -include files AFTER all command-line
             # -D defines are established, so #undef inside them wins.
-            sudo tee /usr/local/include/sqlite3_musl_fix.h > /dev/null << 'HDR'
-          /* Force HAVE_PREAD64/PWRITE64 off for musl builds.
-             musl's unistd.h omits pread64/pwrite64; patching here is safe because
-             SQLite falls back to pread/pwrite which are semantically identical on
-             64-bit musl (off_t is already 64-bit). */
-          #ifdef HAVE_PREAD64
-          #undef  HAVE_PREAD64
-          #define HAVE_PREAD64 0
-          #endif
-          #ifdef HAVE_PWRITE64
-          #undef  HAVE_PWRITE64
-          #define HAVE_PWRITE64 0
-          #endif
-          HDR
             sudo tee /usr/local/bin/musl-gcc > /dev/null << 'SH'
           #!/bin/sh
-          exec /usr/bin/musl-gcc -include /usr/local/include/sqlite3_musl_fix.h "$@"
+          # musl's <unistd.h> does not expose pread64/pwrite64/off64_t by default.
+          # go-sqlite3 compiles them via HAVE_PREAD64=1 (set in its #cgo linux CFLAGS).
+          # Map them to musl equivalents using object-like macros; these are symbol
+          # substitutions and cannot be overridden by HAVE_PREAD64 feature flags.
+          # On 64-bit musl off_t is already 64-bit, so pread==pread64 semantically.
+          exec /usr/bin/musl-gcc \
+            -Dpread64=pread \
+            -Dpwrite64=pwrite \
+            -Doff64_t=off_t \
+            "$@"
           SH
             sudo chmod +x /usr/local/bin/musl-gcc
           fi
