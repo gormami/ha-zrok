@@ -7,7 +7,7 @@
         "data": {
           "token": "zrok Account Token",
           "zrok_api_endpoint": "API Endpoint (leave default for zrok.io)",
-          "binary_path": "Binary directory override (leave blank to use default)"
+          "binary_path": "Binary directory (leave blank for default; enter a directory path, not a file path)"
         }
       },
       "tunnel": {
@@ -35,7 +35,8 @@
         "data": {
           "share_mode": "Share Mode",
           "reserved_token": "Reserved Share Token",
-          "tunnel_port": "Home Assistant Port"
+          "tunnel_port": "Home Assistant Port",
+          "binary_path": "Binary directory (leave blank for default; enter a directory path, not a file path)"
         }
       }
     }

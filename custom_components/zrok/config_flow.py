@@ -60,7 +60,11 @@ class ZrokConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 ): selector.TextSelector(),
                 vol.Optional(
                     CONF_BINARY_PATH, default=""
-                ): selector.TextSelector(),
+                ): selector.TextSelector(
+                    selector.TextSelectorConfig(
+                        type=selector.TextSelectorType.TEXT
+                    )
+                ),
             }
         )
 
@@ -182,6 +186,14 @@ class ZrokOptionsFlow(config_entries.OptionsFlow):
                         min=1,
                         max=65535,
                         mode=selector.NumberSelectorMode.BOX,
+                    )
+                ),
+                vol.Optional(
+                    CONF_BINARY_PATH,
+                    default=current.get(CONF_BINARY_PATH, ""),
+                ): selector.TextSelector(
+                    selector.TextSelectorConfig(
+                        type=selector.TextSelectorType.TEXT
                     )
                 ),
             }
