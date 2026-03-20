@@ -160,9 +160,6 @@ jobs:
       - name: Verify compiler shim
         run: |
           echo "=== CC wrapper ===" && cat "$(which "${{ matrix.goarch == 'amd64' && 'musl-gcc' || matrix.goarch == 'arm64' && 'aarch64-musl-gcc' || 'armhf-musl-gcc' }}")"
-          if [ "${{ matrix.goarch }}" = "amd64" ]; then
-            echo "=== sqlite3_musl_fix.h ===" && cat /usr/local/include/sqlite3_musl_fix.h
-          fi
 
       - name: Build static zrok binary
         env:
